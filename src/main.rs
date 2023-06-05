@@ -88,7 +88,7 @@ enum TileStatus {
     Shown,
 }
 
-fn get_bomb_locations(x_len: &usize, y_len: &usize, bombs: &usize, start: &(usize, usize)) -> Vec<(usize, usize)> {
+fn generate_bombs(x_len: &usize, y_len: &usize, bombs: &usize, start: &(usize, usize)) -> Vec<(usize, usize)> {
     assert!(*bombs < *x_len * *y_len, "Cannot instantiate more/as many bombs as there are tiles."); // should this be here?
 
     let mut rng = rand::thread_rng();
@@ -132,42 +132,34 @@ fn update_bomb_counts(row_ind: usize, col_ind: usize, tiles: &mut Vec<Vec<Tile>>
     }
 }
 
-fn init_board(row_size: usize, col_size: usize, bombs: usize, start: (usize, usize)) -> Board {
-    // TODO: make this faster/smarter
-
+fn make_empty_board(row_size: usize, col_size: usize) -> Board {
     // initialize an empty board
-    let mut tiles: Vec<Vec<Tile>> = vec![];
-
-    for y in 0..row_size {
-        let mut row: Vec<Tile> = vec![];
-        for x in 0..col_size {
-            row.push(Tile { x, y, content: TileValue::Empty, status: TileStatus::Hidden, flagged: false });
-        }
-        tiles.push(row);
-    }
-    tiles[start.0][start.1].status = TileStatus::Shown;
-
-    // find and set bomb positions
-    let pairs = get_bomb_locations(&row_size, &col_size, &bombs, &start);
-    for (i, j) in pairs {
-        println!("Bomb at {i},{j}");
-        tiles[i][j].content = TileValue::Bomb;
-        update_bomb_counts(i, j, &mut tiles);
-
-        // update surrounding tile counts
-        // for tile in get_mut_neighbors(x, y, &mut tiles) {
-        //     match tile.content {
-        //         TileValue::Empty | TileValue::Bomb => (),
-        //         TileValue::Value(n) => tile.content = TileValue::Value(n + 1),
-        //     }
-        // }
-        
-    }
-
-    // TODO: update tile values with correct number of bombs
-    
+    let tiles: Vec<Vec<Tile>> = (0..row_size).map(|y| {
+        (0..col_size).map(|x| {
+            Tile { x, y, content: TileValue::Empty, status: TileStatus::Hidden, flagged: false }
+        }).collect()
+    }).collect();
 
     return Board { row_size, col_size, tiles };
+}
+
+fn init_board(row_size: usize, col_size: usize, bombs: usize, start: (usize, usize)) -> Board {
+    // TODO: make this faster/smarter
+    let mut board: Board = make_empty_board(row_size, col_size);
+
+    // find and set bomb positions
+    let pairs = generate_bombs(&row_size, &col_size, &bombs, &start);
+    for (i, j) in pairs {
+        println!("Bomb at {i},{j}");
+        board.tiles[i][j].content = TileValue::Bomb;
+        update_bomb_counts(i, j, &mut board.tiles);
+    }
+
+    // clear starting tile
+    board.tiles[start.0][start.1].status = TileStatus::Shown;
+    
+
+    return board;
 }
 
 fn main() {
