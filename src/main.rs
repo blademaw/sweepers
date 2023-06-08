@@ -128,7 +128,7 @@ impl Board {
         return Err("Can't clear block with incorrect flag count.".to_string());
     }
 
-    fn clear_tiles(&mut self, locs: Vec<(usize, usize)>) {
+    fn clear_tiles(&mut self, mut locs: Vec<(usize, usize)>) {
         // clear the selected position and all orthogonally connected free
         // neighbors exhaustively
         while let Some((row, col)) = locs.pop() {
@@ -306,6 +306,6 @@ fn main() {
     board.show_board();
     board.show_board_all();
 
-    board.clear_tiles(start);
+    board.clear_tiles(vec![start]);
     board.show_board();
 }
