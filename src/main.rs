@@ -83,73 +83,79 @@ impl Board {
             return Err("You can't uncover a flagged tile.".to_string());
         }
 
+        // if the tile is unflagged, try to uncover
         match self.tiles[row][col].content {
             TileValue::Bomb => Ok(GameStatus::Loss),
             TileValue::Empty => {
-                self.clear_single_tile(loc);
-                Ok(GameStatus::InPlay)
+                self.clear_tiles(vec![loc]);
+                return Ok(GameStatus::InPlay);
             },
             TileValue::Value(_) => {
-                self.clear_multiple_tiles(loc)
+                return self.clear_multiple_from_tile(loc);
             }
         }
     }
 
-    fn count_surrounding_bombs(&self, loc: (usize, usize)) -> usize {
-        let (row, col) = loc;
-        let mut bombs: usize = 0;
+    fn clear_multiple_from_tile(&mut self, origin: (usize, usize)) -> Result<GameStatus, String> {
+        let (row, col) = origin;
+        let mut tiles_to_clear: Vec<(usize, usize)> = vec![];
+
+        let mut flagged_count = 0;
+        let mut bomb_count = 0;
 
         for i in (row.saturating_sub(1))..=(std::cmp::min(row + 1, self.row_size - 1)) {
             for j in (col.saturating_sub(1))..=(std::cmp::min(col + 1, self.col_size - 1)) {
-                match self.tiles[i][j].content {
-                    TileValue::Bomb => bombs += 1,
-                    TileValue::Empty | TileValue::Value(_) => (),
+                if i != row || j != col {
+                    if self.tiles[i][j].is_flagged {
+                        flagged_count += 1
+                    } else {
+                        tiles_to_clear.push((i,j))
+                    }
+
+                    match self.tiles[i][j].content {
+                        TileValue::Bomb => bomb_count += 1,
+                        _ => (),
+                    }
                 }
             }
         }
 
-        return bombs;
+        if flagged_count != bomb_count {
+            self.clear_tiles(tiles_to_clear);
+            return Ok(GameStatus::InPlay);
+        }
+
+        return Err("Can't clear block with incorrect flag count.".to_string());
     }
 
-    fn clear_multiple_tiles(&mut self, origin: (usize, usize)) -> Result<GameStatus, String> {
-        let (row, col) = origin;
-
-        let neighbors = self.count_surrounding_bombs(origin);
-        todo!()
-    }
-
-    // TODO: refactor this into (&mut self, locs: Vec<(usize, usize)>) and
-    // make clearing tiles based on a list of locations to clear. this means
-    // we can use one function to clear X tiles rather than have to functions
-    // to handle clearing multiple tiles.
-    fn clear_single_tile(&mut self, loc: (usize, usize)) {
+    fn clear_tiles(&mut self, locs: Vec<(usize, usize)>) {
         // clear the selected position and all orthogonally connected free
         // neighbors exhaustively
-        let (row, col) = loc;
+        while let Some((row, col)) = locs.pop() {
+            let mut to_show: Vec<(usize, usize)> = vec![];
+            let mut closed: Vec<&Tile> = vec![];
+            let mut open: Vec<&Tile> = vec![&self.tiles[row][col]];
 
-        let mut to_show: Vec<(usize, usize)> = vec![];
-        let mut closed: Vec<&Tile> = vec![];
-        let mut open: Vec<&Tile> = vec![&self.tiles[row][col]];
+            while let Some(cur) = open.pop() {
+                closed.push(cur);
 
-        while let Some(cur) = open.pop() {
-            closed.push(cur);
-
-            match cur.content {
-                TileValue::Bomb => continue,
-                TileValue::Value(_) => to_show.push((cur.y, cur.x)),
-                TileValue::Empty => {
-                    to_show.push((cur.y, cur.x));
-                    open.extend(
-                        self.get_orthogonal_neighbors(cur.y, cur.x)
-                            .iter()
-                            .filter(|t| !closed.contains(t)),
-                    );
+                match cur.content {
+                    TileValue::Bomb => continue,
+                    TileValue::Value(_) => to_show.push((cur.y, cur.x)),
+                    TileValue::Empty => {
+                        to_show.push((cur.y, cur.x));
+                        open.extend(
+                            self.get_orthogonal_neighbors(cur.y, cur.x)
+                                .iter()
+                                .filter(|t| !closed.contains(t)),
+                        );
+                    }
                 }
             }
-        }
 
-        for (row, col) in to_show {
-            self.tiles[row][col].status = TileStatus::Shown;
+            for (row, col) in to_show {
+                self.tiles[row][col].status = TileStatus::Shown;
+            }
         }
     }
 }
@@ -238,7 +244,6 @@ fn update_bomb_counts(row_ind: usize, col_ind: usize, tiles: &mut Vec<Vec<Tile>>
 
     for i in (row_ind.saturating_sub(1))..=(std::cmp::min(row_ind + 1, row_max - 1)) {
         for j in (col_ind.saturating_sub(1))..=(std::cmp::min(col_ind + 1, col_max - 1)) {
-            println!("{i},{j}");
             if i != row_ind || j != col_ind {
                 let mut tile = tiles[i].get_mut(j).unwrap();
                 match tile.content {
@@ -301,6 +306,6 @@ fn main() {
     board.show_board();
     board.show_board_all();
 
-    board.clear_single_tile(start);
+    board.clear_tiles(start);
     board.show_board();
 }
